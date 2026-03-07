@@ -34,8 +34,6 @@ build/
 
 node_modules
 .env
-target/
 *.log
 .DS_Store
-.idea
-.vscode
+src/main/resources/application-local.properties
