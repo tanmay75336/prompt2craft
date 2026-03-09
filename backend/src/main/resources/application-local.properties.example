@@ -1,3 +1,0 @@
-# Local-only overrides. Do not commit real secrets.
-# Copy this file to application-local.properties and set your values.
-groq.api.key=${GROQ_API_KEY}
