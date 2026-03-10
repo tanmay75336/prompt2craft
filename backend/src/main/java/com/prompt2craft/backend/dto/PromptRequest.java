@@ -2,13 +2,22 @@ package com.prompt2craft.backend.dto;
 
 public class PromptRequest {
 
-    private String prompt;
+    private String topic;
+    private int slides;
 
-    public String getPrompt() {
-        return prompt;
+    public String getTopic() {
+        return topic;
     }
 
-    public void setPrompt(String prompt) {
-        this.prompt = prompt;
+    public void setTopic(String topic) {
+        this.topic = topic;
+    }
+
+    public int getSlides() {
+        return slides;
+    }
+
+    public void setSlides(int slides) {
+        this.slides = slides;
     }
 }

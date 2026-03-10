@@ -30,7 +30,7 @@ public class GroqClient {
         String resolvedApiKey = apiKey == null ? "" : apiKey.trim();
 
         if (resolvedApiKey.isEmpty() || resolvedApiKey.contains("replace_with_your_groq_api_key")) {
-            throw new RuntimeException("Missing Groq API key. Set GROQ_API_KEY environment variable.");
+            throw new RuntimeException("Missing Groq API key. Set GROQ_API_KEY in backend/.env or in your environment variables.");
         }
 
         /*
