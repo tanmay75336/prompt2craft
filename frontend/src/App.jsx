@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeStyles } from "./components/ThemeStyles";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./context/authContextShared";
 import {
   buildPreviewSlides,
   clampSlideCount,
   createPresentationFilename,
   FREE_GENERATION_LIMIT,
 } from "./lib/presentation";
-import { assertSupabaseConfigured } from "./lib/supabaseClient";
+import { ensureUserUsageRecord, incrementUserUsage } from "./lib/supabaseClient";
 import { generatePresentation } from "./services/api";
 
 const SUGGESTIONS = [
@@ -587,42 +587,7 @@ export default function App() {
     setUsageLoading(true);
 
     try {
-      const supabase = assertSupabaseConfigured();
-      const { data, error } = await supabase
-        .from("users_usage")
-        .select("id, free_generations_used, paid_generations")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        const nextUsage = {
-          id: data.id,
-          free_generations_used: data.free_generations_used ?? 0,
-          paid_generations: data.paid_generations ?? 0,
-        };
-        setUsage(nextUsage);
-        return nextUsage;
-      }
-
-      const { data: created, error: insertError } = await supabase
-        .from("users_usage")
-        .insert({ user_id: user.id, free_generations_used: 0, paid_generations: 0 })
-        .select("id, free_generations_used, paid_generations")
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      const nextUsage = {
-        id: created.id,
-        free_generations_used: created.free_generations_used ?? 0,
-        paid_generations: created.paid_generations ?? 0,
-      };
+      const nextUsage = await ensureUserUsageRecord(user.id);
       setUsage(nextUsage);
       return nextUsage;
     } finally {
@@ -713,7 +678,7 @@ export default function App() {
     try {
       await logout();
       showToast("Logged out successfully.");
-    } catch (_error) {
+    } catch {
       showToast("Unable to logout right now.", false);
     }
   };
@@ -724,34 +689,11 @@ export default function App() {
         return usage;
       }
 
-      const supabase = assertSupabaseConfigured();
-      const currentUsage = await fetchUsage();
-      const payload = {
-        free_generations_used: currentUsage.free_generations_used + (mode === "free" ? 1 : 0),
-        paid_generations: currentUsage.paid_generations + (mode === "paid" ? 1 : 0),
-      };
-
-      const { data, error } = await supabase
-        .from("users_usage")
-        .update(payload)
-        .eq("id", currentUsage.id)
-        .select("id, free_generations_used, paid_generations")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const nextUsage = {
-        id: data.id,
-        free_generations_used: data.free_generations_used ?? payload.free_generations_used,
-        paid_generations: data.paid_generations ?? payload.paid_generations,
-      };
-
+      const nextUsage = await incrementUserUsage(user.id, mode);
       setUsage(nextUsage);
       return nextUsage;
     },
-    [fetchUsage, usage, user],
+    [usage, user],
   );
 
   const runGeneration = useCallback(
@@ -782,7 +724,7 @@ export default function App() {
             paidUsed: updatedUsage.paid_generations,
           },
         });
-      } catch (_error) {
+      } catch {
         showToast("Generation failed. Please try again.", false);
       } finally {
         setLoading(false);
@@ -815,7 +757,7 @@ export default function App() {
 
       setPendingGeneration({ topic: topic.trim(), slideCount: exactSlideCount });
       setShowPaymentModal(true);
-    } catch (_error) {
+    } catch {
       showToast("Unable to verify your generation limit.", false);
     }
   }, [fetchUsage, navigate, runGeneration, showToast, slideCount, topic, user]);

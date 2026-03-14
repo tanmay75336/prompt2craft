@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeStyles } from "../components/ThemeStyles";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContextShared";
+import { ensureUserUsageRecord } from "../lib/supabaseClient";
 
 export default function Register() {
   const navigate = useNavigate();
   const { register, user } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,15 +40,29 @@ export default function Register() {
 
     try {
       const response = await register(email, password);
+      const newUser = response?.user;
 
-      if (response.user && !response.session) {
-        setStatus("Account created. Check your email to confirm your account, then login.");
+      if (!newUser) {
+        throw new Error("User registration failed.");
+      }
+
+      if (!response.session) {
+        setStatus(
+          "Account created. Please confirm your email before logging in."
+        );
         return;
       }
 
+      try {
+        await ensureUserUsageRecord(newUser.id);
+      } catch (usageError) {
+        console.error("Error creating usage row:", usageError);
+      }
+
       navigate("/", { replace: true });
-    } catch (authError) {
-      setError(authError.message || "Unable to create account.");
+
+    } catch (err) {
+      setError(err.message || "Unable to create account.");
     } finally {
       setLoading(false);
     }
@@ -54,12 +71,14 @@ export default function Register() {
   return (
     <>
       <ThemeStyles />
+
       <div className="auth-shell">
         <div className="auth-wrap">
-          <Link to="/" className="logo-link" aria-label="Prompt2Craft home">
-            <div className="logo-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3 5h10M3 8h7M3 11h5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+
+          <Link to="/" className="logo-link">
+            <div className="logo-icon">
+              <svg width="16" height="16" viewBox="0 0 16 16">
+                <path d="M3 5h10M3 8h7M3 11h5" stroke="white" strokeWidth="1.8"/>
               </svg>
             </div>
             <span className="logo-text">Prompt2Craft</span>
@@ -67,58 +86,64 @@ export default function Register() {
 
           <div className="auth-card-wrap">
             <div className="auth-card">
-              <span className="section-label">Get started</span>
-              <h1 className="auth-heading">Create your account</h1>
-              <p className="auth-copy">
-                Register once, then use your free generations before paying Rs 19 for additional decks.
-              </p>
 
-              {status ? <div className="status-banner">{status}</div> : null}
-              {error ? <div className="status-banner error-banner">{error}</div> : null}
+              <span className="section-label">Get started</span>
+
+              <h1 className="auth-heading">
+                Create your account
+              </h1>
+
+              {status && (
+                <div className="status-banner">{status}</div>
+              )}
+
+              {error && (
+                <div className="status-banner error-banner">{error}</div>
+              )}
 
               <form className="auth-form" onSubmit={handleSubmit}>
-                <label className="field-label" htmlFor="register-email">
+
+                <label className="field-label">
                   Email
                   <input
-                    id="register-email"
                     className="field-input"
                     type="email"
-                    autoComplete="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </label>
 
-                <label className="field-label" htmlFor="register-password">
+                <label className="field-label">
                   Password
                   <input
-                    id="register-password"
                     className="field-input"
                     type="password"
-                    autoComplete="new-password"
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </label>
 
-                <label className="field-label" htmlFor="register-confirm-password">
+                <label className="field-label">
                   Confirm password
                   <input
-                    id="register-confirm-password"
                     className="field-input"
                     type="password"
-                    autoComplete="new-password"
                     value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                   />
                 </label>
 
-                <button className="primary-button" type="submit" disabled={loading}>
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={loading}
+                >
                   {loading ? "Creating account..." : "Create account"}
                 </button>
+
               </form>
 
               <div className="helper-row">
@@ -127,8 +152,10 @@ export default function Register() {
                   Login
                 </Link>
               </div>
+
             </div>
           </div>
+
         </div>
       </div>
     </>

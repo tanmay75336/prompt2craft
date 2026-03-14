@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ThemeStyles } from "../components/ThemeStyles";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContextShared";
 
 export default function Login() {
   const navigate = useNavigate();

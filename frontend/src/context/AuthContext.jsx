@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { assertSupabaseConfigured } from "../lib/supabaseClient";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./authContextShared";
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -35,7 +34,7 @@ export function AuthProvider({ children }) {
         });
 
         subscription = authSubscription;
-      } catch (_error) {
+      } catch {
         if (mounted) {
           setSession(null);
           setUser(null);
@@ -99,14 +98,4 @@ export function AuthProvider({ children }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-
-  return context;
 }
