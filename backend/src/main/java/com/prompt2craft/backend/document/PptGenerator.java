@@ -5,14 +5,12 @@ import com.prompt2craft.backend.dto.SlideResponse;
 import com.prompt2craft.backend.service.ImageService;
 
 import org.apache.poi.sl.usermodel.PictureData;
+import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.sl.usermodel.TextParagraph;
-import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.xslf.usermodel.*;
 import org.springframework.stereotype.Component;
 
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Rectangle;
+import java.awt.*;
 import java.io.FileOutputStream;
 import java.util.Collections;
 import java.util.List;
@@ -26,200 +24,213 @@ public class PptGenerator {
         this.imageService = imageService;
     }
 
-    private static final int MAX_BULLETS_PER_SLIDE = 3;
+    private static final Color PRIMARY = new Color(255,115,0);
+    private static final Color BACKGROUND = new Color(246,248,252);
+    private static final Color TEXT = new Color(40,40,40);
 
-    public String generate(SlideResponse response, String fileName) {
+    public String generate(SlideResponse response,String fileName){
 
-        try {
+        try{
 
             XMLSlideShow ppt = new XMLSlideShow();
+            Dimension size = ppt.getPageSize();
 
-            Dimension pageSize = ppt.getPageSize();
-            int slideWidth = pageSize.width;
-            int slideHeight = pageSize.height;
+            int width = size.width;
+            int height = size.height;
 
-            for (Slide slideData : response.getSlides()) {
-
-                String layout = slideData.getLayout();
-
-                if (layout == null) {
-                    layout = "content";
-                }
+            for(Slide slideData : response.getSlides()){
 
                 XSLFSlide slide = ppt.createSlide();
 
-                // ---------- BACKGROUND ----------
-                slide.getBackground().setFillColor(new Color(245, 247, 250));
+                slide.getBackground().setFillColor(BACKGROUND);
 
-                // ---------- TITLE SLIDE ----------
-                if (layout.equalsIgnoreCase("title")) {
+                createHeader(slide,width);
 
-                    XSLFTextBox titleBox = slide.createTextBox();
+                String layout = slideData.getLayout();
 
-                    titleBox.setAnchor(new Rectangle(
-                            100,
-                            slideHeight / 2 - 80,
-                            slideWidth - 200,
-                            160));
+                if(layout == null) layout="content";
 
-                    titleBox.setVerticalAlignment(VerticalAlignment.MIDDLE);
+                if(layout.equals("title")){
 
-                    XSLFTextParagraph para = titleBox.addNewTextParagraph();
-                    para.setTextAlign(TextParagraph.TextAlign.CENTER);
+                    createTitleSlide(slide,slideData,width,height);
 
-                    XSLFTextRun run = para.addNewTextRun();
-                    run.setText(clean(slideData.getTitle()));
-                    run.setFontSize(48.0);
-                    run.setBold(true);
-                    run.setFontColor(new Color(0, 102, 204));
+                }else if(layout.equals("image")){
 
-                    continue;
+                    createImageSlide(slide,slideData,ppt,width,height);
+
+                }else{
+
+                    createContentSlide(slide,slideData,width,height);
+
                 }
 
-                // ---------- SLIDE TITLE ----------
-                XSLFTextBox titleBox = slide.createTextBox();
-
-                titleBox.setAnchor(new Rectangle(
-                        40,
-                        30,
-                        slideWidth - 80,
-                        70));
-
-                titleBox.setVerticalAlignment(VerticalAlignment.MIDDLE);
-
-                XSLFTextParagraph titlePara = titleBox.addNewTextParagraph();
-                titlePara.setTextAlign(TextParagraph.TextAlign.CENTER);
-
-                XSLFTextRun titleRun = titlePara.addNewTextRun();
-                titleRun.setText(clean(slideData.getTitle()));
-                titleRun.setFontSize(36.0);
-                titleRun.setBold(true);
-                titleRun.setFontColor(new Color(0, 102, 204));
-
-                // ---------- IMAGE SLIDE ----------
-                if (layout.equalsIgnoreCase("image")) {
-
-                    String imageQuery = slideData.getImagePrompt();
-
-                    if (imageQuery == null || imageQuery.isBlank()) {
-                        imageQuery = slideData.getTitle() + " sport";
-                    }
-
-                    if (imageQuery == null || imageQuery.isBlank()) {
-                        imageQuery = slideData.getTitle();
-                    }
-
-                    byte[] imageBytes = imageService.fetchImage(imageQuery);
-
-                    if (imageBytes != null) {
-
-                        XSLFPictureData pictureData = ppt.addPicture(imageBytes, PictureData.PictureType.JPEG);
-
-                        XSLFPictureShape picture = slide.createPicture(pictureData);
-
-                        picture.setAnchor(new Rectangle(
-                                60,
-                                140,
-                                slideWidth / 2 - 100,
-                                slideHeight - 220));
-                    }
-
-                    XSLFTextBox bodyBox = slide.createTextBox();
-
-                    bodyBox.setAnchor(new Rectangle(
-                            slideWidth / 2,
-                            140,
-                            slideWidth / 2 - 80,
-                            slideHeight - 200));
-
-                    List<String> points = slideData.getPoints() == null
-                            ? Collections.emptyList()
-                            : slideData.getPoints()
-                                    .stream()
-                                    .limit(MAX_BULLETS_PER_SLIDE)
-                                    .toList();
-
-                    for (String point : points) {
-
-                        XSLFTextParagraph paragraph = bodyBox.addNewTextParagraph();
-
-                        paragraph.setBullet(true);
-
-                        XSLFTextRun run = paragraph.addNewTextRun();
-                        run.setText(trim(clean(point)));
-                        run.setFontSize(22.0);
-                        run.setFontColor(Color.DARK_GRAY);
-                    }
-
-                    continue;
-                }
-
-                // ---------- CONTENT SLIDE ----------
-                XSLFTextBox bodyBox = slide.createTextBox();
-
-                bodyBox.setAnchor(new Rectangle(
-                        80,
-                        130,
-                        slideWidth - 160,
-                        slideHeight - 200));
-
-                bodyBox.setVerticalAlignment(VerticalAlignment.TOP);
-
-                List<String> points = slideData.getPoints() == null
-                        ? Collections.emptyList()
-                        : slideData.getPoints()
-                                .stream()
-                                .limit(MAX_BULLETS_PER_SLIDE)
-                                .toList();
-
-                for (String point : points) {
-
-                    XSLFTextParagraph paragraph = bodyBox.addNewTextParagraph();
-
-                    paragraph.setBullet(true);
-                    paragraph.setLeftMargin(30.0);
-                    paragraph.setIndent(-10.0);
-
-                    XSLFTextRun run = paragraph.addNewTextRun();
-                    run.setText(trim(clean(point)));
-                    run.setFontSize(24.0);
-                    run.setFontColor(Color.DARK_GRAY);
-                }
+                addFooter(slide,width,height);
             }
 
-            try (FileOutputStream out = new FileOutputStream(fileName)) {
+            try(FileOutputStream out = new FileOutputStream(fileName)){
                 ppt.write(out);
             }
 
             return fileName;
 
-        } catch (Exception e) {
+        }catch(Exception e){
 
             e.printStackTrace();
             return "error";
         }
     }
 
-    private String trim(String text) {
+    private void createHeader(XSLFSlide slide,int width){
 
-        if (text == null)
-            return "";
-
-        if (text.length() > 140) {
-            return text.substring(0, 140).trim() + "...";
-        }
-
-        return text;
+        XSLFAutoShape bar = slide.createAutoShape();
+        bar.setShapeType(ShapeType.RECT);
+        bar.setAnchor(new Rectangle(0,0,width,18));
+        bar.setFillColor(PRIMARY);
+        bar.setLineColor(null);
     }
 
-    private String clean(String text) {
+    private void createTitleSlide(XSLFSlide slide,Slide data,int width,int height){
 
-        if (text == null)
-            return "";
+        XSLFTextBox title = slide.createTextBox();
 
-        return text
-                .replaceFirst("^[\\-\\u2022\\*\\s]+", "")
-                .replaceAll("\\s+", " ")
-                .trim();
+        title.setAnchor(new Rectangle(
+                100,
+                height/2-120,
+                width-200,
+                200
+        ));
+
+        XSLFTextParagraph p = title.addNewTextParagraph();
+        p.setTextAlign(TextParagraph.TextAlign.CENTER);
+
+        XSLFTextRun r = p.addNewTextRun();
+        r.setText(data.getTitle());
+        r.setFontSize(56.0);
+        r.setBold(true);
+        r.setFontColor(PRIMARY);
+    }
+
+    private void createContentSlide(XSLFSlide slide,Slide data,int width,int height){
+
+        createTitle(slide,data.getTitle(),width);
+
+        XSLFTextBox body = slide.createTextBox();
+
+        body.setAnchor(new Rectangle(
+                140,
+                180,
+                width-280,
+                height-260
+        ));
+
+        List<String> points = data.getPoints()==null
+                ? Collections.emptyList()
+                : data.getPoints();
+
+        for(String point:points){
+
+            XSLFTextParagraph p = body.addNewTextParagraph();
+
+            p.setBullet(true);
+            p.setLeftMargin(30.0);
+            p.setSpaceAfter(14.0);
+
+            XSLFTextRun r = p.addNewTextRun();
+            r.setText(point);
+            r.setFontSize(28.0);
+            r.setFontColor(TEXT);
+        }
+    }
+
+    private void createImageSlide(XSLFSlide slide,Slide data,XMLSlideShow ppt,int width,int height){
+
+        createTitle(slide,data.getTitle(),width);
+
+        String query = data.getImagePrompt();
+
+        if(query==null || query.isBlank()){
+            query = data.getTitle();
+        }
+
+        byte[] image = imageService.fetchImage(query);
+
+        if(image!=null){
+
+            XSLFPictureData pd = ppt.addPicture(image,PictureData.PictureType.JPEG);
+
+            XSLFPictureShape picture = slide.createPicture(pd);
+
+            picture.setAnchor(new Rectangle(
+                    120,
+                    200,
+                    width/2-160,
+                    height-300
+            ));
+        }
+
+        XSLFTextBox body = slide.createTextBox();
+
+        body.setAnchor(new Rectangle(
+                width/2+40,
+                200,
+                width/2-160,
+                height-300
+        ));
+
+        List<String> points = data.getPoints()==null
+                ? Collections.emptyList()
+                : data.getPoints();
+
+        for(String point:points){
+
+            XSLFTextParagraph p = body.addNewTextParagraph();
+
+            p.setBullet(true);
+            p.setSpaceAfter(12.0);
+
+            XSLFTextRun r = p.addNewTextRun();
+            r.setText(point);
+            r.setFontSize(26.0);
+            r.setFontColor(TEXT);
+        }
+    }
+
+    private void createTitle(XSLFSlide slide,String title,int width){
+
+        XSLFTextBox titleBox = slide.createTextBox();
+
+        titleBox.setAnchor(new Rectangle(
+                100,
+                50,
+                width-200,
+                80
+        ));
+
+        XSLFTextParagraph p = titleBox.addNewTextParagraph();
+
+        XSLFTextRun r = p.addNewTextRun();
+        r.setText(title);
+        r.setFontSize(40.0);
+        r.setBold(true);
+        r.setFontColor(TEXT);
+    }
+
+    private void addFooter(XSLFSlide slide,int width,int height){
+
+        XSLFTextBox footer = slide.createTextBox();
+
+        footer.setAnchor(new Rectangle(
+                width-240,
+                height-40,
+                220,
+                30
+        ));
+
+        XSLFTextParagraph p = footer.addNewTextParagraph();
+
+        XSLFTextRun r = p.addNewTextRun();
+        r.setText("Generated by Prompt2Craft");
+        r.setFontSize(12.0);
+        r.setFontColor(new Color(120,120,120));
     }
 }

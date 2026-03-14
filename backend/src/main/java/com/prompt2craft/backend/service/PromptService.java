@@ -22,30 +22,42 @@ public class PromptService {
 
         try {
 
-            // Free tier rule
+            // Minimum slides rule
             if (slideCount < 10) {
                 slideCount = 10;
             }
 
-            // -------- AI PROMPT WITH LAYOUT ENGINE --------
+            // -------- PROFESSIONAL AI PROMPT ENGINE --------
             String prompt =
-                    "Create a PowerPoint presentation about '" + topic + "' with exactly "
-                            + slideCount + " slides. "
+                    "You are a professional presentation designer. "
 
-                            + "Return ONLY valid JSON in this format: "
+                            + "Create a visually balanced PowerPoint presentation about the topic: '"
+                            + topic + "'. "
+
+                            + "Generate exactly " + slideCount + " slides. "
+
+                            + "Return ONLY valid JSON with no explanations. "
+
+                            + "JSON structure must follow this format exactly: "
 
                             + "{ \"slides\": [ "
-                            + "{ \"layout\":\"title\", \"title\":\"Presentation Title\" }, "
-                            + "{ \"layout\":\"content\", \"title\":\"Topic\", \"points\":[\"point1\",\"point2\",\"point3\"] }, "
-                            + "{ \"layout\":\"image\", \"title\":\"Topic\", \"points\":[\"point1\",\"point2\",\"point3\"], \"imagePrompt\":\"image description\" } "
+                            + "{ \"layout\":\"title\", \"title\":\"Presentation Title\", \"subtitle\":\"Short subtitle\" }, "
+                            + "{ \"layout\":\"content\", \"title\":\"Slide title\", \"points\":[\"point1\",\"point2\",\"point3\"] }, "
+                            + "{ \"layout\":\"image\", \"title\":\"Slide title\", \"points\":[\"point1\",\"point2\",\"point3\"], \"imagePrompt\":\"clear search phrase for a relevant presentation image\" } "
                             + "] } "
 
-                            + "Rules: "
-                            + "First slide must always be layout 'title'. "
-                            + "Other slides can be 'content' or 'image'. "
-                            + "Each slide must have a short title and max 3 bullet points.";
+                            + "Slide design rules: "
 
-            // 1️⃣ Call Groq
+                            + "1. First slide MUST be layout 'title'. "
+                            + "2. Other slides should mix 'content' and 'image' layouts. "
+                            + "3. Each slide title must be short and clear. "
+                            + "4. Each slide must contain maximum 3 bullet points. "
+                            + "5. Bullet points must be concise (under 12 words). "
+                            + "6. Image slides must contain a highly relevant 'imagePrompt'. "
+                            + "7. Avoid generic phrases like 'In conclusion' or 'Overview'. "
+                            + "8. Slides should feel educational, professional, and informative. ";
+
+            // 1️⃣ Call Groq AI
             String aiContent = groqClient.generate(prompt);
 
             System.out.println("===== AI JSON RESPONSE =====");
@@ -55,8 +67,9 @@ public class PromptService {
             ObjectMapper mapper = new ObjectMapper();
             SlideResponse response = mapper.readValue(aiContent, SlideResponse.class);
 
-            // 3️⃣ Clean filename from topic
-            String fileName = topic.replaceAll("[^a-zA-Z0-9]", "_")
+            // 3️⃣ Create safe filename
+            String fileName = topic
+                    .replaceAll("[^a-zA-Z0-9]", "_")
                     .toLowerCase() + ".pptx";
 
             // 4️⃣ Generate PPT
