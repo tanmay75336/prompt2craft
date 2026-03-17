@@ -1,12 +1,14 @@
 package com.prompt2craft.backend.ai;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-
-import java.util.*;
 
 @Component
 public class GroqClient {
@@ -33,37 +35,13 @@ public class GroqClient {
             throw new RuntimeException("Missing Groq API key. Set GROQ_API_KEY in backend/.env or in your environment variables.");
         }
 
-        /*
-         IMPORTANT PROMPT
-         Forces AI to produce concise bullet points that define concepts.
-        */
         String systemPrompt = """
-You are an AI presentation generator.
-
-Return ONLY valid JSON in this format:
-
-{
-  "slides":[
-    {
-      "title":"Slide title",
-      "points":[
-        "bullet point",
-        "bullet point",
-        "bullet point"
-      ]
-    }
-  ]
-}
-
-Rules:
-- Generate 6 slides
-- Each slide must have 3 bullet points
-- Each bullet point MAX 18 words
-- Write each bullet as a concise definition or explanation
-- Prefer complete sentence fragments that answer "what is it?" or "why does it matter?"
-- Do NOT include markdown
-- Return ONLY JSON
-""";
+                You are an AI presentation generator.
+                Always return valid JSON only.
+                Do not include markdown, code fences, commentary, or extra text.
+                Match the exact schema requested by the user prompt.
+                Omit fields that are not needed for a given slide layout.
+                """;
 
         List<Map<String, String>> messages = new ArrayList<>();
 
@@ -118,15 +96,11 @@ Rules:
         }
 
         String content = message.get("content").toString();
-
-        /*
-         Some models sometimes add text before JSON.
-         This safely extracts only the JSON part.
-        */
         int jsonStart = content.indexOf("{");
+        int jsonEnd = content.lastIndexOf("}");
 
-        if (jsonStart != -1) {
-            content = content.substring(jsonStart);
+        if (jsonStart != -1 && jsonEnd >= jsonStart) {
+            content = content.substring(jsonStart, jsonEnd + 1);
         }
 
         return content;

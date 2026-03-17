@@ -1,4 +1,5 @@
 export const FREE_GENERATION_LIMIT = 3;
+export const EDITOR_LAYOUTS = ["title", "content", "image", "timeline", "stats", "two-column"];
 
 const PREVIEW_ACCENTS = [
   "#f97316",
@@ -27,6 +28,54 @@ export function createPresentationFilename(topic) {
     .replace(/^-+|-+$/g, "");
 
   return `${safeTopic || "prompt2craft-presentation"}.pptx`;
+}
+
+export function createEmptySlide(layout = "content", index = 0) {
+  const normalizedLayout = EDITOR_LAYOUTS.includes(layout) ? layout : "content";
+  const position = index + 1;
+
+  return {
+    id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${position}`,
+    layout: normalizedLayout,
+    title: normalizedLayout === "title" ? "Presentation Title" : `New Slide ${position}`,
+    subtitle: normalizedLayout === "title" ? "Add a subtitle" : "",
+    points: normalizedLayout === "title" ? [] : ["Add your first point", "Add your second point", "Add your third point"],
+    imagePrompt: "",
+    timelinePoints: ["Phase 1", "Phase 2", "Phase 3"],
+    stats: ["Key stat", "Another metric", "Insight", "Result"],
+    left: ["Left column point 1", "Left column point 2"],
+    right: ["Right column point 1", "Right column point 2"],
+  };
+}
+
+function toArray(value, fallback = []) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : fallback;
+}
+
+export function normalizeSlide(slide = {}, index = 0) {
+  const fallback = createEmptySlide(index === 0 ? "title" : "content", index);
+  const layout = EDITOR_LAYOUTS.includes(slide.layout) ? slide.layout : fallback.layout;
+
+  return {
+    id: slide.id ?? fallback.id,
+    layout,
+    title: typeof slide.title === "string" && slide.title.trim() ? slide.title : fallback.title,
+    subtitle: typeof slide.subtitle === "string" ? slide.subtitle : fallback.subtitle,
+    points: toArray(slide.points, fallback.points),
+    imagePrompt: typeof slide.imagePrompt === "string" ? slide.imagePrompt : fallback.imagePrompt,
+    timelinePoints: toArray(slide.timelinePoints, fallback.timelinePoints),
+    stats: toArray(slide.stats, fallback.stats),
+    left: toArray(slide.left, fallback.left),
+    right: toArray(slide.right, fallback.right),
+  };
+}
+
+export function normalizeSlides(slides = []) {
+  return slides.map((slide, index) => normalizeSlide(slide, index));
+}
+
+export function serializeSlides(slides = []) {
+  return slides.map(({ id, ...slide }) => slide);
 }
 
 export function downloadBlob(blob, filename) {

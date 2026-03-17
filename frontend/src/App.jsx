@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { ThemeStyles } from "./components/ThemeStyles";
 import { useAuth } from "./context/authContextShared";
 import {
-  buildPreviewSlides,
   clampSlideCount,
   createPresentationFilename,
   FREE_GENERATION_LIMIT,
+  normalizeSlides,
 } from "./lib/presentation";
 import { ensureUserUsageRecord, incrementUserUsage } from "./lib/supabaseClient";
-import { generatePresentation } from "./services/api";
+import { previewPresentation } from "./services/api";
 
 const SUGGESTIONS = [
   "Series A pitch deck for a fintech startup",
@@ -711,14 +711,18 @@ export default function App() {
       setLoading(true);
 
       try {
-        const blob = await generatePresentation(topic.trim(), exactSlideCount);
+        const preview = await previewPresentation(topic.trim(), exactSlideCount);
+
+        if (!preview?.slides?.length) {
+          throw new Error("Preview response did not include slides");
+        }
+
         const updatedUsage = await incrementUsage(paid ? "paid" : "free");
 
         navigate("/preview", {
           state: {
-            blob,
             topic: topic.trim(),
-            slides: buildPreviewSlides(topic.trim(), exactSlideCount),
+            slides: normalizeSlides(preview?.slides ?? []),
             filename: createPresentationFilename(topic.trim()),
             freeUsed: updatedUsage.free_generations_used,
             paidUsed: updatedUsage.paid_generations,

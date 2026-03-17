@@ -8,6 +8,8 @@ public class Slide {
     private String title;
     private String subtitle;
     private List<String> points;
+    private List<String> timelinePoints;
+    private List<String> stats;
     private List<String> left;
     private List<String> right;
     private String imagePrompt;
@@ -44,6 +46,22 @@ public class Slide {
 
     public void setPoints(List<String> points){
         this.points = points;
+    }
+
+    public List<String> getTimelinePoints(){
+        return timelinePoints;
+    }
+
+    public void setTimelinePoints(List<String> timelinePoints){
+        this.timelinePoints = timelinePoints;
+    }
+
+    public List<String> getStats(){
+        return stats;
+    }
+
+    public void setStats(List<String> stats){
+        this.stats = stats;
     }
 
     public List<String> getLeft(){
