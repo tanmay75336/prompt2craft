@@ -1,5 +1,9 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8081/api";
+// Base URL (Production + Local fallback)
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://prompt2craft-backend.onrender.com/api";
 
+// Helper to parse error messages
 async function parseError(response, fallbackMessage) {
   try {
     const data = await response.json();
@@ -9,62 +13,67 @@ async function parseError(response, fallbackMessage) {
   }
 }
 
+// Preview Presentation
 export const previewPresentation = async (topic, slides) => {
   const response = await fetch(`${API_BASE_URL}/preview`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      topic,
-      slides,
-    }),
+    body: JSON.stringify({ topic, slides }),
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to generate presentation preview"));
+    throw new Error(
+      await parseError(response, "Failed to generate presentation preview")
+    );
   }
 
   return response.json();
 };
 
+// Generate PPT
 export const generatePresentation = async (topic, slides) => {
   const response = await fetch(`${API_BASE_URL}/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      topic,
-      slides,
-    }),
+    body: JSON.stringify({ topic, slides }),
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to generate presentation"));
+    throw new Error(
+      await parseError(response, "Failed to generate presentation")
+    );
   }
 
   return response.blob();
 };
 
+// Generate PPT from Edited Slides
 export const generatePresentationFromJson = async (slides) => {
   const response = await fetch(`${API_BASE_URL}/generate-from-json`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      slides,
-    }),
+    body: JSON.stringify({ slides }),
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to generate presentation from edited slides"));
+    throw new Error(
+      await parseError(
+        response,
+        "Failed to generate presentation from edited slides"
+      )
+    );
   }
 
   return response.blob();
 };
 
+// Create Razorpay Order
 export const createPaymentOrder = async (payload) => {
   const response = await fetch(`${API_BASE_URL}/payments/order`, {
     method: "POST",
@@ -75,12 +84,15 @@ export const createPaymentOrder = async (payload) => {
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to create payment order"));
+    throw new Error(
+      await parseError(response, "Failed to create payment order")
+    );
   }
 
   return response.json();
 };
 
+// Verify Payment
 export const verifyPayment = async (payload) => {
   const response = await fetch(`${API_BASE_URL}/payments/verify`, {
     method: "POST",
@@ -91,7 +103,9 @@ export const verifyPayment = async (payload) => {
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to verify payment"));
+    throw new Error(
+      await parseError(response, "Failed to verify payment")
+    );
   }
 
   return response.json();
