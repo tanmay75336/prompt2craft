@@ -217,6 +217,41 @@ export default function SlideEditorPage() {
 
   const topic = previewState?.topic ?? "Prompt2Craft Presentation";
   const filename = previewState?.filename ?? createPresentationFilename(topic);
+  const deckInsights = useMemo(() => {
+    const layoutCounts = slides.reduce((counts, slide) => {
+      counts[slide.layout] = (counts[slide.layout] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    const visualSlides = (layoutCounts.title ?? 0) + (layoutCounts.image ?? 0);
+    const proofSlides = (layoutCounts.stats ?? 0) + (layoutCounts.timeline ?? 0);
+    const totalNarrativePoints = slides.reduce((total, slide) => total + (slide.points?.length ?? 0), 0);
+    const averageNarrativeDensity = slides.length ? (totalNarrativePoints / slides.length).toFixed(1) : "0.0";
+    const suggestions = [];
+
+    if (slides.length >= 5 && proofSlides === 0) {
+      suggestions.push("Add one proof slide with stats or a timeline to strengthen credibility.");
+    }
+
+    if (slides.length >= 4 && (layoutCounts.image ?? 0) === 0) {
+      suggestions.push("Add an image-led slide to improve visual pacing.");
+    }
+
+    if (Number(averageNarrativeDensity) > 4.2) {
+      suggestions.push("A few slides are text-heavy. Trim copy for faster scanning.");
+    }
+
+    if (!suggestions.length) {
+      suggestions.push("The deck has a healthy mix of narrative, proof, and visual pacing.");
+    }
+
+    return {
+      visualSlides,
+      proofSlides,
+      averageNarrativeDensity,
+      suggestions,
+    };
+  }, [slides]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "light");
@@ -486,6 +521,46 @@ export default function SlideEditorPage() {
                     <strong style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "#1f2937", textAlign: "right" }}>{item.value}</strong>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ padding: 16, borderRadius: 18, background: "#f8fafc", border: "1px solid #e7ebf0", marginBottom: 18 }}>
+                <p style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, letterSpacing: "-0.03em", color: "#1f2937", marginBottom: 14 }}>
+                  Deck insights
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginBottom: 14 }}>
+                  <div style={{ borderRadius: 14, background: "#ffffff", border: "1px solid #e7ebf0", padding: 12 }}>
+                    <p style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff7300", marginBottom: 8 }}>
+                      Visuals
+                    </p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", color: "#1f2937" }}>
+                      {deckInsights.visualSlides}
+                    </p>
+                  </div>
+                  <div style={{ borderRadius: 14, background: "#ffffff", border: "1px solid #e7ebf0", padding: 12 }}>
+                    <p style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff7300", marginBottom: 8 }}>
+                      Proof
+                    </p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", color: "#1f2937" }}>
+                      {deckInsights.proofSlides}
+                    </p>
+                  </div>
+                  <div style={{ borderRadius: 14, background: "#ffffff", border: "1px solid #e7ebf0", padding: 12 }}>
+                    <p style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff7300", marginBottom: 8 }}>
+                      Density
+                    </p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", color: "#1f2937" }}>
+                      {deckInsights.averageNarrativeDensity}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {deckInsights.suggestions.map((suggestion) => (
+                    <div key={suggestion} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff7300", marginTop: 7, flexShrink: 0 }} />
+                      <p style={{ fontFamily: "var(--font-body)", fontSize: 13, lineHeight: 1.55, color: "#667085" }}>{suggestion}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="editor-toolbar" style={{ marginBottom: 16 }}>

@@ -1,4 +1,8 @@
+import { API_BASE_URL } from "../services/api";
+
 export const FREE_GENERATION_LIMIT = 3;
+export const PAID_GENERATION_PRICE_INR = 19;
+export const MAX_PPT_PHOTOS = 3;
 export const EDITOR_LAYOUTS = ["title", "content", "image", "timeline", "stats", "two-column"];
 
 const PREVIEW_ACCENTS = [
@@ -52,6 +56,22 @@ function toArray(value, fallback = []) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : fallback;
 }
 
+export function resolveSlideImageQuery(slide = {}) {
+  const imagePrompt = typeof slide.imagePrompt === "string" ? slide.imagePrompt.trim() : "";
+  const title = typeof slide.title === "string" ? slide.title.trim() : "";
+
+  return imagePrompt || title;
+}
+
+export function buildPreviewImageUrl(slide = {}) {
+  if (!["title", "image"].includes(slide.layout)) {
+    return "";
+  }
+
+  const query = resolveSlideImageQuery(slide);
+  return query ? `${API_BASE_URL}/preview-image?query=${encodeURIComponent(query)}` : "";
+}
+
 export function normalizeSlide(slide = {}, index = 0) {
   const fallback = createEmptySlide(index === 0 ? "title" : "content", index);
   const layout = EDITOR_LAYOUTS.includes(slide.layout) ? slide.layout : fallback.layout;
@@ -63,6 +83,7 @@ export function normalizeSlide(slide = {}, index = 0) {
     subtitle: typeof slide.subtitle === "string" ? slide.subtitle : fallback.subtitle,
     points: toArray(slide.points, fallback.points),
     imagePrompt: typeof slide.imagePrompt === "string" ? slide.imagePrompt : fallback.imagePrompt,
+    previewImageUrl: typeof slide.previewImageUrl === "string" ? slide.previewImageUrl : "",
     timelinePoints: toArray(slide.timelinePoints, fallback.timelinePoints),
     stats: toArray(slide.stats, fallback.stats),
     left: toArray(slide.left, fallback.left),
@@ -75,7 +96,7 @@ export function normalizeSlides(slides = []) {
 }
 
 export function serializeSlides(slides = []) {
-  return slides.map(({ id, ...slide }) => slide);
+  return slides.map(({ id, previewImageUrl, ...slide }) => slide);
 }
 
 export function downloadBlob(blob, filename) {

@@ -6,10 +6,13 @@ import {
   clampSlideCount,
   createPresentationFilename,
   FREE_GENERATION_LIMIT,
+  MAX_PPT_PHOTOS,
   normalizeSlides,
+  PAID_GENERATION_PRICE_INR,
 } from "./lib/presentation";
+import { loadRazorpayCheckout } from "./lib/razorpay";
 import { ensureUserUsageRecord, incrementUserUsage } from "./lib/supabaseClient";
-import { previewPresentation } from "./services/api";
+import { createPaymentOrder, previewPresentation, verifyPayment } from "./services/api";
 
 const SUGGESTIONS = [
   "Series A pitch deck for a fintech startup",
@@ -68,6 +71,52 @@ const FEATURES = [
   },
 ];
 
+const SAAS_FEATURES = [
+  {
+    title: "Theory-first deck engine",
+    desc: "Presentations now bias toward definitions, mechanisms, examples, and takeaways instead of shallow filler.",
+  },
+  {
+    title: "Editable review workspace",
+    desc: "Every deck opens in an editor so teams can tune the narrative before exporting the final PPT.",
+  },
+  {
+    title: "Usage-aware billing",
+    desc: "Free generations, paid single-deck checkout, and per-user usage tracking are built into the product flow.",
+  },
+  {
+    title: "Real-photo discipline",
+    desc: `Each deck is capped at ${MAX_PPT_PHOTOS} real photos so the result stays premium and uncluttered.`,
+  },
+];
+
+const USE_CASES = [
+  {
+    title: "Founders and GTM teams",
+    desc: "Pitch decks, launch narratives, QBRs, investor updates, and sales enablement slides with stronger story flow.",
+    badge: "Revenue",
+  },
+  {
+    title: "Students and educators",
+    desc: "Theory-heavy class decks, seminar presentations, explainers, and concept breakdowns with cleaner structure.",
+    badge: "Learning",
+  },
+  {
+    title: "Consultants and operators",
+    desc: "Strategy decks, research summaries, ops reviews, and decision docs that are faster to present and easier to scan.",
+    badge: "Execution",
+  },
+];
+
+const PLAN_FEATURES = [
+  { label: "AI-generated slide structure", free: true, paid: true },
+  { label: "Editable preview workspace", free: true, paid: true },
+  { label: "Up to 3 free generations", free: true, paid: true },
+  { label: `Real-photo capped design (${MAX_PPT_PHOTOS} max)`, free: true, paid: true },
+  { label: "Razorpay checkout for extra decks", free: false, paid: true },
+  { label: "Per-user usage tracking", free: false, paid: true },
+];
+
 const STATS = [
   { value: 14280, suffix: "+", label: "Decks created" },
   { value: 28, suffix: "s", label: "Avg. generation time" },
@@ -99,7 +148,7 @@ const FAQS = [
   },
   {
     q: "What is included for free?",
-    a: "Each account gets 3 free presentations. After that, each new generation is available for Rs 19.",
+    a: `Each account gets ${FREE_GENERATION_LIMIT} free presentations. After that, each new generation is available for Rs ${PAID_GENERATION_PRICE_INR}.`,
   },
 ];
 
@@ -521,17 +570,35 @@ const FAQItem = memo(function FAQItem({ item, open, onToggle, idx }) {
   );
 });
 
-function PaymentModal({ onCancel, onPay, processing }) {
+function PaymentModal({ onCancel, onPay, processing, topic, slides }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Payment required" style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(15,15,15,0.68)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center", padding: 16 }}>
       <div className="auth-card" style={{ maxWidth: 420 }}>
         <span className="section-label">Free limit reached</span>
-        <h2 className="section-title" style={{ fontSize: "clamp(28px,4vw,38px)", marginBottom: 14 }}>Generate this presentation for Rs 19</h2>
+        <h2 className="section-title" style={{ fontSize: "clamp(28px,4vw,38px)", marginBottom: 14 }}>Generate this presentation for Rs {PAID_GENERATION_PRICE_INR}</h2>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--muted)", lineHeight: 1.7, marginBottom: 24 }}>
-          You have used all 3 free presentations. Continue with a one-time paid generation and unlock the preview plus download flow.
+          You have used all {FREE_GENERATION_LIMIT} free presentations. Continue with a one-time paid generation and unlock the preview plus download flow.
         </p>
+        <div style={{ padding: 14, borderRadius: 16, background: "#fff7ed", border: "1px solid rgba(249,115,22,.16)", marginBottom: 18 }}>
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#9a3412", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+            Order summary
+          </p>
+          <p style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 700, color: "#111827", letterSpacing: "-0.03em", lineHeight: 1.3 }}>
+            {topic || "Prompt2Craft deck"}
+          </p>
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
+            {slides} slides, premium PPTX export, editable preview, and up to {MAX_PPT_PHOTOS} real photos in the deck.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+          {["Razorpay checkout", "One-time charge", "Instant preview access"].map((item) => (
+            <span key={item} className="inline-badge" style={{ marginBottom: 0 }}>
+              {item}
+            </span>
+          ))}
+        </div>
         <button className="primary-button" type="button" onClick={onPay} disabled={processing}>
-          {processing ? "Processing payment..." : "Pay Rs 19"}
+          {processing ? "Opening checkout..." : `Pay Rs ${PAID_GENERATION_PRICE_INR}`}
         </button>
         <button className="secondary-button" type="button" style={{ marginTop: 12 }} onClick={onCancel} disabled={processing}>
           Cancel
@@ -697,21 +764,23 @@ export default function App() {
   );
 
   const runGeneration = useCallback(
-    async ({ paid = false } = {}) => {
-      if (!topic.trim()) {
+    async ({ paid = false, nextTopic, nextSlideCount } = {}) => {
+      const resolvedTopic = (nextTopic ?? topic).trim();
+
+      if (!resolvedTopic) {
         inputRef.current?.focus();
         return;
       }
 
-      const exactSlideCount = clampSlideCount(slideCount);
-      if (exactSlideCount !== slideCount) {
+      const exactSlideCount = clampSlideCount(nextSlideCount ?? slideCount);
+      if (nextSlideCount == null && exactSlideCount !== slideCount) {
         setSlideCount(exactSlideCount);
       }
 
       setLoading(true);
 
       try {
-        const preview = await previewPresentation(topic.trim(), exactSlideCount);
+        const preview = await previewPresentation(resolvedTopic, exactSlideCount);
 
         if (!preview?.slides?.length) {
           throw new Error("Preview response did not include slides");
@@ -721,9 +790,9 @@ export default function App() {
 
         navigate("/preview", {
           state: {
-            topic: topic.trim(),
+            topic: resolvedTopic,
             slides: normalizeSlides(preview?.slides ?? []),
-            filename: createPresentationFilename(topic.trim()),
+            filename: createPresentationFilename(resolvedTopic),
             freeUsed: updatedUsage.free_generations_used,
             paidUsed: updatedUsage.paid_generations,
           },
@@ -772,14 +841,72 @@ export default function App() {
     }
 
     setPaymentProcessing(true);
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 1200);
-    });
 
-    setShowPaymentModal(false);
-    setPaymentProcessing(false);
-    await runGeneration({ paid: true });
-    setPendingGeneration(null);
+    try {
+      await loadRazorpayCheckout();
+
+      const order = await createPaymentOrder({
+        topic: pendingGeneration.topic,
+        slides: pendingGeneration.slideCount,
+        customerEmail: user?.email ?? "",
+        customerName: user?.user_metadata?.full_name ?? user?.email ?? "Prompt2Craft user",
+      });
+
+      await new Promise((resolve, reject) => {
+        const razorpay = new window.Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: order.name,
+          description: order.description,
+          order_id: order.orderId,
+          prefill: {
+            email: order.customerEmail || user?.email || "",
+            name: order.customerName || user?.user_metadata?.full_name || "",
+          },
+          theme: {
+            color: "#f97316",
+          },
+          modal: {
+            ondismiss: () => reject(new Error("Payment cancelled.")),
+          },
+          handler: async (response) => {
+            try {
+              const verification = await verifyPayment({
+                orderId: order.orderId,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
+              if (!verification?.verified) {
+                reject(new Error("Payment verification failed."));
+                return;
+              }
+
+              resolve(verification);
+            } catch (error) {
+              reject(error);
+            }
+          },
+        });
+
+        razorpay.open();
+      });
+
+      setShowPaymentModal(false);
+      await runGeneration({
+        paid: true,
+        nextTopic: pendingGeneration.topic,
+        nextSlideCount: pendingGeneration.slideCount,
+      });
+      showToast("Payment verified. Building your presentation now.");
+      setPendingGeneration(null);
+    } catch (error) {
+      showToast(error?.message || "Payment could not be completed.", false);
+    } finally {
+      setPaymentProcessing(false);
+    }
   };
 
   const freeRemaining = Math.max(FREE_GENERATION_LIMIT - (usage.free_generations_used ?? 0), 0);
@@ -803,7 +930,7 @@ export default function App() {
               </h1>
 
               <p style={{ fontFamily: "var(--font-body)", fontSize: "clamp(15px,2.5vw,18px)", color: "var(--muted)", lineHeight: 1.65, maxWidth: 560, margin: "0 auto 48px", fontWeight: 400 }}>
-                Describe your topic. Choose your slide count. Review the generated preview. Download a polished, editable PowerPoint only when you are ready.
+                Describe your topic. Choose your slide count. Generate a theory-first deck with cleaner structure, disciplined visuals, editable preview, and a polished PowerPoint export only when you are ready.
               </p>
 
               <div role="search" aria-label="Presentation generator" style={{ background: "var(--card)", border: "1.5px solid var(--border)", borderRadius: 16, padding: 8, boxShadow: "0 4px 32px rgba(0,0,0,0.07)", maxWidth: 660, margin: "0 auto 18px" }}>
@@ -852,7 +979,7 @@ export default function App() {
                 ) : (
                   <span className="inline-badge">Login required before generation</span>
                 )}
-                <span className="inline-badge">Paid generations cost Rs 19 each</span>
+                <span className="inline-badge">Paid generations use Razorpay checkout at Rs {PAID_GENERATION_PRICE_INR}</span>
               </div>
 
               <div>
@@ -869,7 +996,8 @@ export default function App() {
               <div role="list" aria-label="Key statistics" style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 0, marginTop: 64, paddingTop: 40, borderTop: "1px solid var(--border)" }}>
                 {[
                   { n: "14,000+", l: "Presentations created" },
-                  { n: "< 28s", l: "Median generation time" },
+                  { n: `< ${STATS[1].value}${STATS[1].suffix}`, l: "Median generation time" },
+                  { n: `${MAX_PPT_PHOTOS} photos max`, l: "Cleaner visual pacing" },
                   { n: "Preview first", l: "Download only when ready" },
                 ].map((stat, index) => (
                   <div key={stat.l} role="listitem" style={{ padding: "0 28px", textAlign: "center", borderLeft: index > 0 ? "1px solid var(--border)" : "none" }}>
@@ -991,6 +1119,65 @@ export default function App() {
             </div>
           </section>
 
+          <section className="section-pad" style={{ padding: "96px 28px", maxWidth: 1120, margin: "0 auto" }}>
+            <div className="saas-layout" style={{ display: "grid", gap: 22, alignItems: "start" }}>
+              <div>
+                <span className="section-label">SaaS model</span>
+                <h2 className="section-title" style={{ fontSize: "clamp(28px,4vw,46px)", marginBottom: 16 }}>
+                  Built like a product,
+                  <br />
+                  not just a demo screen
+                </h2>
+                <p style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "var(--muted)", lineHeight: 1.75, maxWidth: 500 }}>
+                  Prompt2Craft now behaves more like a usable AI SaaS workflow: login, free usage tracking, paid unlocks, editable preview, and a cleaner deck-generation system that stays structured instead of noisy.
+                </p>
+              </div>
+
+              <div className="saas-feature-grid" style={{ display: "grid", gap: 14 }}>
+                {SAAS_FEATURES.map((feature, index) => (
+                  <div key={feature.title} className="panel-card hover-lift" style={{ padding: 22, background: index % 2 === 0 ? "var(--card)" : "linear-gradient(135deg,#fff7ed,#fff)" }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#f97316,#fb7185)", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-display)", fontWeight: 800, marginBottom: 16 }}>
+                      0{index + 1}
+                    </div>
+                    <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.03em", marginBottom: 10 }}>
+                      {feature.title}
+                    </h3>
+                    <p style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--muted)", lineHeight: 1.65 }}>
+                      {feature.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="section-pad" style={{ padding: "96px 28px", background: "var(--section-alt)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+              <div style={{ textAlign: "center", marginBottom: 48 }}>
+                <span className="section-label">Use cases</span>
+                <h2 className="section-title" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
+                  Fits the way real teams
+                  <br />
+                  and learners work
+                </h2>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 }}>
+                {USE_CASES.map((item) => (
+                  <div key={item.title} className="panel-card hover-lift" style={{ padding: 24 }}>
+                    <span className="inline-badge">{item.badge}</span>
+                    <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.035em", marginTop: 16, marginBottom: 12 }}>
+                      {item.title}
+                    </h3>
+                    <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--muted)", lineHeight: 1.75 }}>
+                      {item.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section id="pricing" className="section-pad" style={{ padding: "96px 28px", maxWidth: 1120, margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: 48 }}>
               <span className="section-label">Pricing</span>
@@ -1008,11 +1195,39 @@ export default function App() {
 
               <div className="panel-card" style={{ background: "linear-gradient(135deg,#fff7ed,#fff1f2)" }}>
                 <span className="inline-badge">Pay as you go</span>
-                <h3 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--fg)", marginTop: 18, letterSpacing: "-0.04em" }}>Rs 19 per extra deck</h3>
+                <h3 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--fg)", marginTop: 18, letterSpacing: "-0.04em" }}>Rs {PAID_GENERATION_PRICE_INR} per extra deck</h3>
                 <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--muted)", lineHeight: 1.7, marginTop: 12 }}>
-                  When your free limit is exhausted, confirm a simulated payment and continue generating presentations one at a time.
+                  When your free limit is exhausted, launch Razorpay checkout and continue generating presentations one at a time.
                 </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
+                  {["One-time payment", "No subscription required", "Checkout before generation"].map((item) => (
+                    <span key={item} className="inline-badge">
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
+            </div>
+
+            <div className="panel-card" style={{ marginTop: 20, padding: 0, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", background: "var(--section-alt)", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Feature
+                </div>
+                <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Free
+                </div>
+                <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Paid
+                </div>
+              </div>
+              {PLAN_FEATURES.map((row) => (
+                <div key={row.label} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", borderBottom: "1px solid var(--border)" }}>
+                  <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 14, color: "var(--fg)" }}>{row.label}</div>
+                  <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 14, color: row.free ? "#059669" : "var(--muted)" }}>{row.free ? "Included" : "-"}</div>
+                  <div style={{ padding: "16px 22px", fontFamily: "var(--font-body)", fontSize: 14, color: row.paid ? "#059669" : "var(--muted)" }}>{row.paid ? "Included" : "-"}</div>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -1103,7 +1318,18 @@ export default function App() {
         </footer>
 
         {loading ? <AIProgressModal step={aiStep} topic={topic} /> : null}
-        {showPaymentModal ? <PaymentModal onCancel={() => setShowPaymentModal(false)} onPay={handlePayment} processing={paymentProcessing} /> : null}
+        {showPaymentModal ? (
+          <PaymentModal
+            onCancel={() => {
+              setShowPaymentModal(false);
+              setPendingGeneration(null);
+            }}
+            onPay={handlePayment}
+            processing={paymentProcessing}
+            topic={pendingGeneration?.topic}
+            slides={pendingGeneration?.slideCount ?? clampSlideCount(slideCount)}
+          />
+        ) : null}
 
         {toast ? (
           <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 24, right: 24, zIndex: 8000, background: "var(--card)", border: `1px solid ${toast.ok ? "rgba(16,185,129,.2)" : "rgba(239,68,68,.2)"}`, borderRadius: 12, padding: "13px 18px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 16px 40px rgba(0,0,0,.12)", animation: "fadeSlide .25s ease both", maxWidth: 360 }}>

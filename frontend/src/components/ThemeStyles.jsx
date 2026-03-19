@@ -128,6 +128,8 @@ export function ThemeStyles() {
       .summary-row { display: flex; justify-content: space-between; gap: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-family: var(--font-body); font-size: 13px; color: var(--muted); }
       .summary-row strong { color: var(--fg); font-weight: 700; }
       .inline-badge { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: #fff7ed; border: 1px solid rgba(249,115,22,.16); font-family: var(--font-body); font-size: 12px; font-weight: 700; color: #c2410c; }
+      .saas-layout { grid-template-columns: minmax(0,0.9fr) minmax(0,1.1fr); }
+      .saas-feature-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 
       @media (max-width: 1024px) {
         .nav-links { gap: 20px; }
@@ -138,6 +140,7 @@ export function ThemeStyles() {
         .stats-grid { grid-template-columns: repeat(2,1fr) !important; }
         .footer-grid { grid-template-columns: 1fr 1fr !important; }
         .page-grid { grid-template-columns: 1fr; }
+        .saas-layout { grid-template-columns: 1fr !important; }
       }
 
       @media (max-width: 768px) {
@@ -169,6 +172,7 @@ export function ThemeStyles() {
         .page-content { padding: 96px 20px 40px; }
         .auth-wrap { padding: 20px; }
         .auth-card { padding: 24px; border-radius: 20px; }
+        .saas-feature-grid { grid-template-columns: 1fr !important; }
       }
 
       @media (max-width: 480px) {

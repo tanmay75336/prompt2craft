@@ -2,9 +2,11 @@ package com.prompt2craft.backend.document;
 
 import com.prompt2craft.backend.dto.Slide;
 import com.prompt2craft.backend.dto.SlideResponse;
+import com.prompt2craft.backend.service.ImageAsset;
 import com.prompt2craft.backend.service.ImageService;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -32,6 +34,7 @@ public class PptGenerator {
 
     private static final int SLIDE_WIDTH = 960;
     private static final int SLIDE_HEIGHT = 540;
+    private static final int MAX_PHOTOS_PER_DECK = 3;
 
     private static final String FONT_DISPLAY = "Aptos Display";
     private static final String FONT_BODY = "Aptos";
@@ -58,12 +61,16 @@ public class PptGenerator {
         try (XMLSlideShow ppt = new XMLSlideShow()) {
             ppt.setPageSize(new Dimension(SLIDE_WIDTH, SLIDE_HEIGHT));
 
-            for (Slide slideData : safeSlides(response)) {
+            List<Slide> slides = safeSlides(response);
+            int[] photoUsage = new int[] { 0 };
+
+            for (int index = 0; index < slides.size(); index++) {
+                Slide slideData = slides.get(index);
                 XSLFSlide slide = ppt.createSlide();
                 slide.getBackground().setFillColor(BACKGROUND);
 
                 createCanvasChrome(slide);
-                createLayout(slide, slideData, ppt);
+                createLayout(slide, slideData, ppt, index, slides.size(), photoUsage);
             }
 
             try (FileOutputStream out = new FileOutputStream(fileName)) {
@@ -77,7 +84,7 @@ public class PptGenerator {
         }
     }
 
-    private void createLayout(XSLFSlide slide, Slide slideData, XMLSlideShow ppt) {
+    private void createLayout(XSLFSlide slide, Slide slideData, XMLSlideShow ppt, int slideIndex, int totalSlides, int[] photoUsage) {
         String layout = slideData.getLayout();
 
         if (layout == null || layout.isBlank()) {
@@ -86,10 +93,10 @@ public class PptGenerator {
 
         switch (layout) {
             case "title":
-                createTitleSlide(slide, slideData, ppt);
+                createTitleSlide(slide, slideData, ppt, totalSlides, photoUsage);
                 break;
             case "image":
-                createImageSlide(slide, slideData, ppt);
+                createImageSlide(slide, slideData, ppt, photoUsage);
                 break;
             case "timeline":
                 createTimelineSlide(slide, slideData);
@@ -107,7 +114,7 @@ public class PptGenerator {
         }
 
         if (!"title".equals(layout)) {
-            addFooter(slide);
+            addFooter(slide, slideIndex, totalSlides);
         }
     }
 
@@ -125,12 +132,12 @@ public class PptGenerator {
         glow.setLineColor(null);
     }
 
-    private void createTitleSlide(XSLFSlide slide, Slide data, XMLSlideShow ppt) {
+    private void createTitleSlide(XSLFSlide slide, Slide data, XMLSlideShow ppt, int totalSlides, int[] photoUsage) {
         createFilledCard(slide, 40, 40, 880, 460, CARD, BORDER);
         createFilledCard(slide, 488, 64, 384, 412, CARD_TINT, new Color(255, 227, 210));
 
         Rectangle heroArea = new Rectangle(504, 80, 352, 380);
-        placeImage(slide, ppt, resolveImageQuery(data), heroArea, true);
+        placeImage(slide, ppt, resolveImageQuery(data), heroArea, true, photoUsage);
 
         XSLFTextBox eyebrow = createTextBox(slide, 72, 72, 190, 18);
         addText(eyebrow, "Prompt2Craft", 11.0, true, PRIMARY, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
@@ -165,6 +172,18 @@ public class PptGenerator {
         XSLFTextBox accentText = createTextBox(slide, 88, 416, 152, 18);
         addText(accentText, "Minimal. Clean. Editorial.", 11.0, true, PRIMARY_DEEP, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
 
+        createFilledCard(slide, 72, 360, 124, 28, CARD, new Color(255, 232, 218));
+        XSLFTextBox slideCount = createTextBox(slide, 86, 369, 96, 12);
+        addText(slideCount, totalSlides + " slides", 10.0, true, PRIMARY_DEEP, null, TextParagraph.TextAlign.CENTER, false, FONT_BODY);
+
+        createFilledCard(slide, 204, 360, 156, 28, CARD, new Color(255, 232, 218));
+        XSLFTextBox theoryBadge = createTextBox(slide, 218, 369, 128, 12);
+        addText(theoryBadge, "Theory-first narrative", 10.0, true, PRIMARY_DEEP, null, TextParagraph.TextAlign.CENTER, false, FONT_BODY);
+
+        createFilledCard(slide, 368, 360, 116, 28, CARD, new Color(255, 232, 218));
+        XSLFTextBox photoBadge = createTextBox(slide, 382, 369, 88, 12);
+        addText(photoBadge, "Max 3 photos", 10.0, true, PRIMARY_DEEP, null, TextParagraph.TextAlign.CENTER, false, FONT_BODY);
+
         XSLFAutoShape imageBadge = createFilledCard(slide, 720, 422, 116, 28, CARD, new Color(255, 232, 218));
         imageBadge.setLineWidth(1.0);
         XSLFTextBox badgeText = createTextBox(slide, 734, 430, 88, 12);
@@ -176,17 +195,29 @@ public class PptGenerator {
 
         List<String> points = safeList(data.getPoints());
         if (points.isEmpty()) {
-            points = List.of("Add the main point here", "Support it with a concise detail", "Close with a clear takeaway");
+            points = List.of(
+                    "Add the main point here",
+                    "Define the principle clearly",
+                    "Explain why it works",
+                    "Use one example",
+                    "Close with a takeaway"
+            );
         }
 
         String highlight = points.get(0);
-        List<String> remaining = points.size() > 1 ? points.subList(1, points.size()) : Collections.emptyList();
+        List<String> theoryPoints = points.size() > 1
+                ? new ArrayList<>(points.subList(1, Math.min(points.size(), 4)))
+                : Collections.emptyList();
+        List<String> appliedPoints = points.size() > 4
+                ? new ArrayList<>(points.subList(4, points.size()))
+                : (points.size() > 1 ? new ArrayList<>(points.subList(Math.min(points.size(), 2), points.size())) : Collections.emptyList());
 
-        createFilledCard(slide, 56, 146, 848, 92, PRIMARY_SOFT, new Color(255, 227, 210));
-        XSLFTextBox highlightLabel = createTextBox(slide, 84, 164, 140, 14);
-        addText(highlightLabel, "Key takeaway", 10.0, true, PRIMARY, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
+        createFilledCard(slide, 56, 146, 418, 316, CARD, BORDER);
 
-        XSLFTextBox highlightBox = createTextBox(slide, 84, 184, 792, 38);
+        XSLFTextBox theoryLabel = createTextBox(slide, 84, 170, 140, 14);
+        addText(theoryLabel, "Core theory", 10.0, true, PRIMARY, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
+
+        XSLFTextBox highlightBox = createTextBox(slide, 84, 194, 362, 86);
         addText(
                 highlightBox,
                 highlight,
@@ -199,40 +230,48 @@ public class PptGenerator {
                 FONT_DISPLAY
         );
 
-        createFilledCard(slide, 56, 258, 848, 204, CARD, BORDER);
+        XSLFTextBox theoryBody = createTextBox(slide, 84, 296, 352, 126);
+        addBullets(
+                theoryBody,
+                theoryPoints.isEmpty() ? List.of("Explain the principle in one to three concise bullets.") : theoryPoints,
+                resolveBulletFontSize(theoryPoints, 17.0, 15.5, 14.0),
+                12.0
+        );
 
-        if (remaining.isEmpty()) {
-            XSLFTextBox fallback = createTextBox(slide, 88, 316, 784, 60);
-            addText(fallback, "Use this space for supporting detail or speaker context.", 17.0, false, MUTED, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
-            return;
-        }
+        createFilledCard(slide, 494, 146, 410, 148, PRIMARY_SOFT, new Color(255, 227, 210));
+        XSLFTextBox frameworkLabel = createTextBox(slide, 522, 170, 160, 14);
+        addText(frameworkLabel, "How to think about it", 10.0, true, PRIMARY, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
 
-        double bulletFontSize = resolveBulletFontSize(remaining, 18.5, 16.5, 15.0);
+        List<String> frameworkPoints = theoryPoints.size() > 1
+                ? theoryPoints.subList(0, Math.min(theoryPoints.size(), 2))
+                : Collections.emptyList();
+        XSLFTextBox frameworkBody = createTextBox(slide, 522, 198, 330, 68);
+        addBullets(
+                frameworkBody,
+                frameworkPoints.isEmpty() ? List.of("Summarize the operating logic in one or two lines.") : frameworkPoints,
+                resolveBulletFontSize(frameworkPoints, 15.5, 14.5, 13.5),
+                10.0
+        );
 
-        if (remaining.size() >= 4) {
-            int split = (remaining.size() + 1) / 2;
-            List<String> left = new ArrayList<>(remaining.subList(0, split));
-            List<String> right = new ArrayList<>(remaining.subList(split, remaining.size()));
-            addBulletColumn(slide, 88, 292, 356, 148, left, bulletFontSize, 14.0);
-            addBulletColumn(slide, 492, 292, 356, 148, right, bulletFontSize, 14.0);
+        createFilledCard(slide, 494, 310, 410, 152, CARD_TINT, new Color(255, 227, 210));
+        XSLFTextBox appliedLabel = createTextBox(slide, 522, 334, 160, 14);
+        addText(appliedLabel, "Applied takeaway", 10.0, true, PRIMARY, null, TextParagraph.TextAlign.LEFT, false, FONT_BODY);
 
-            XSLFAutoShape divider = slide.createAutoShape();
-            divider.setShapeType(ShapeType.RECT);
-            divider.setAnchor(new Rectangle(474, 292, 2, 148));
-            divider.setFillColor(new Color(245, 232, 224));
-            divider.setLineColor(null);
-        } else {
-            XSLFTextBox body = createTextBox(slide, 88, 294, 784, 148);
-            addBullets(body, remaining, bulletFontSize, 16.0);
-        }
+        XSLFTextBox appliedBody = createTextBox(slide, 522, 362, 330, 74);
+        addBullets(
+                appliedBody,
+                appliedPoints.isEmpty() ? List.of("Use this area for the implication, example, or recommendation.") : appliedPoints,
+                resolveBulletFontSize(appliedPoints, 15.5, 14.5, 13.5),
+                10.0
+        );
     }
 
-    private void createImageSlide(XSLFSlide slide, Slide data, XMLSlideShow ppt) {
+    private void createImageSlide(XSLFSlide slide, Slide data, XMLSlideShow ppt, int[] photoUsage) {
         drawSectionHeader(slide, data.getTitle(), data.getSubtitle(), "Image");
 
         Rectangle imageArea = new Rectangle(56, 146, 418, 316);
         createFilledCard(slide, imageArea.x, imageArea.y, imageArea.width, imageArea.height, CARD_TINT, new Color(255, 227, 210));
-        placeImage(slide, ppt, resolveImageQuery(data), imageArea, true);
+        placeImage(slide, ppt, resolveImageQuery(data), imageArea, true, photoUsage);
 
         createFilledCard(slide, 494, 146, 410, 316, CARD, BORDER);
 
@@ -372,9 +411,19 @@ public class PptGenerator {
         }
     }
 
-    private void addFooter(XSLFSlide slide) {
-        XSLFTextBox footer = createTextBox(slide, 738, 506, 170, 12);
-        addText(footer, "Generated by Prompt2Craft", 8.5, false, MUTED, null, TextParagraph.TextAlign.RIGHT, false, FONT_BODY);
+    private void addFooter(XSLFSlide slide, int slideIndex, int totalSlides) {
+        XSLFTextBox footer = createTextBox(slide, 612, 506, 296, 12);
+        addText(
+                footer,
+                "Generated by Prompt2Craft  |  Slide " + (slideIndex + 1) + " of " + totalSlides,
+                8.5,
+                false,
+                MUTED,
+                null,
+                TextParagraph.TextAlign.RIGHT,
+                false,
+                FONT_BODY
+        );
     }
 
     private void addBulletColumn(XSLFSlide slide, int x, int y, int width, int height, List<String> points, double fontSize, double spaceAfter) {
@@ -382,8 +431,14 @@ public class PptGenerator {
         addBullets(body, points, fontSize, spaceAfter);
     }
 
-    private void placeImage(XSLFSlide slide, XMLSlideShow ppt, String query, Rectangle target, boolean cover) {
-        byte[] image = imageService.fetchImage(query);
+    private void placeImage(XSLFSlide slide, XMLSlideShow ppt, String query, Rectangle target, boolean cover, int[] photoUsage) {
+        if (photoUsage != null && photoUsage[0] >= MAX_PHOTOS_PER_DECK) {
+            XSLFTextBox placeholder = createTextBox(slide, target.x + 22, target.y + target.height / 2 - 28, target.width - 44, 56);
+            addText(placeholder, "Photo limit reached\n" + text(query, "Visual placeholder"), 13.0, true, MUTED, null, TextParagraph.TextAlign.CENTER, false, FONT_BODY);
+            return;
+        }
+
+        ImageAsset image = imageService.fetchImageAsset(query);
 
         if (image == null) {
             XSLFTextBox placeholder = createTextBox(slide, target.x + 22, target.y + target.height / 2 - 24, target.width - 44, 48);
@@ -391,15 +446,19 @@ public class PptGenerator {
             return;
         }
 
-        byte[] processed = cover ? cropToCover(image, target.width, target.height) : image;
-        if (processed == null) {
-            processed = image;
-        }
+        PicturePayload payload = preparePicture(image, target.width, target.height, cover);
 
         try {
-            XSLFPictureData pictureData = ppt.addPicture(processed, PictureData.PictureType.JPEG);
+            if (payload == null || payload.bytes == null) {
+                throw new IllegalStateException("Unable to prepare image bytes.");
+            }
+
+            XSLFPictureData pictureData = ppt.addPicture(payload.bytes, payload.type);
             XSLFPictureShape picture = slide.createPicture(pictureData);
             picture.setAnchor(target);
+            if (photoUsage != null) {
+                photoUsage[0]++;
+            }
         } catch (Exception e) {
             XSLFTextBox placeholder = createTextBox(slide, target.x + 22, target.y + target.height / 2 - 24, target.width - 44, 48);
             addText(placeholder, text(query, "Image unavailable"), 14.0, true, MUTED, null, TextParagraph.TextAlign.CENTER, false, FONT_BODY);
@@ -542,6 +601,27 @@ public class PptGenerator {
         return new String[] { value, "Key metric" };
     }
 
+    private PicturePayload preparePicture(ImageAsset asset, int targetWidth, int targetHeight, boolean cover) {
+        if (asset == null || asset.bytes() == null) {
+            return null;
+        }
+
+        if (cover) {
+            byte[] cropped = cropToCover(asset.bytes(), targetWidth, targetHeight);
+            if (cropped != null) {
+                return new PicturePayload(cropped, PictureData.PictureType.JPEG);
+            }
+        }
+
+        PictureData.PictureType detectedType = detectPictureType(asset.contentType(), asset.bytes());
+        if (detectedType != null) {
+            return new PicturePayload(asset.bytes(), detectedType);
+        }
+
+        byte[] converted = convertToJpeg(asset.bytes());
+        return converted == null ? null : new PicturePayload(converted, PictureData.PictureType.JPEG);
+    }
+
     private byte[] cropToCover(byte[] imageBytes, int targetWidth, int targetHeight) {
         try {
             BufferedImage source = ImageIO.read(new ByteArrayInputStream(imageBytes));
@@ -566,12 +646,77 @@ public class PptGenerator {
             }
 
             BufferedImage cropped = source.getSubimage(cropX, cropY, cropWidth, cropHeight);
+            BufferedImage rgbImage = new BufferedImage(cropped.getWidth(), cropped.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = rgbImage.createGraphics();
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, rgbImage.getWidth(), rgbImage.getHeight());
+            graphics.drawImage(cropped, 0, 0, null);
+            graphics.dispose();
+
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(cropped, "jpg", outputStream);
+            ImageIO.write(rgbImage, "jpg", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private byte[] convertToJpeg(byte[] imageBytes) {
+        try {
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(imageBytes));
+            if (source == null) {
+                return null;
+            }
+
+            BufferedImage rgbImage = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = rgbImage.createGraphics();
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, rgbImage.getWidth(), rgbImage.getHeight());
+            graphics.drawImage(source, 0, 0, null);
+            graphics.dispose();
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(rgbImage, "jpg", outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private PictureData.PictureType detectPictureType(String contentType, byte[] bytes) {
+        String normalizedType = contentType == null ? "" : contentType.trim().toLowerCase();
+
+        if (normalizedType.contains("png")) {
+            return PictureData.PictureType.PNG;
+        }
+        if (normalizedType.contains("gif")) {
+            return PictureData.PictureType.GIF;
+        }
+        if (normalizedType.contains("bmp")) {
+            return PictureData.PictureType.BMP;
+        }
+        if (normalizedType.contains("jpeg") || normalizedType.contains("jpg")) {
+            return PictureData.PictureType.JPEG;
+        }
+
+        if (bytes == null || bytes.length < 12) {
+            return null;
+        }
+
+        if ((bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8) {
+            return PictureData.PictureType.JPEG;
+        }
+        if ((bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+            return PictureData.PictureType.PNG;
+        }
+        if (bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F') {
+            return PictureData.PictureType.GIF;
+        }
+        if (bytes[0] == 'B' && bytes[1] == 'M') {
+            return PictureData.PictureType.BMP;
+        }
+
+        return null;
     }
 
     private String resolveImageQuery(Slide data) {
@@ -590,5 +735,15 @@ public class PptGenerator {
 
     private String text(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static class PicturePayload {
+        private final byte[] bytes;
+        private final PictureData.PictureType type;
+
+        private PicturePayload(byte[] bytes, PictureData.PictureType type) {
+            this.bytes = bytes;
+            this.type = type;
+        }
     }
 }

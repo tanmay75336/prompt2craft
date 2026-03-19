@@ -7,6 +7,9 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,22 +22,38 @@ public class ImageService {
     private String accessKey;
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private final Map<String, ImageAsset> imageCache = new ConcurrentHashMap<>();
 
     public byte[] fetchImage(String query) {
+        ImageAsset asset = fetchImageAsset(query);
+        return asset == null ? null : asset.bytes();
+    }
 
+    public ImageAsset fetchImageAsset(String query) {
         String normalizedQuery = normalize(query);
 
         if (normalizedQuery.isBlank()) {
             return null;
         }
 
+        String cacheKey = normalizedQuery.toLowerCase(Locale.ROOT);
+        ImageAsset cached = imageCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
         try {
-            byte[] entityImage = fetchWikipediaImage(normalizedQuery);
+            ImageAsset entityImage = fetchWikipediaImage(normalizedQuery);
             if (entityImage != null) {
+                imageCache.put(cacheKey, entityImage);
                 return entityImage;
             }
 
-            return fetchUnsplashImage(normalizedQuery);
+            ImageAsset unsplashImage = fetchUnsplashImage(normalizedQuery);
+            if (unsplashImage != null) {
+                imageCache.put(cacheKey, unsplashImage);
+            }
+            return unsplashImage;
 
         } catch (Exception e) {
             System.out.println("Image fetch failed: " + e.getMessage());
@@ -42,7 +61,7 @@ public class ImageService {
         }
     }
 
-    private byte[] fetchWikipediaImage(String query) {
+    private ImageAsset fetchWikipediaImage(String query) {
         if (!looksLikeEntityQuery(query)) {
             return null;
         }
@@ -73,13 +92,13 @@ public class ImageService {
                 imageUrl = summaryRoot.path("thumbnail").path("source").asText("");
             }
 
-            return imageUrl.isBlank() ? null : downloadBytes(imageUrl);
+            return imageUrl.isBlank() ? null : downloadAsset(imageUrl);
         } catch (Exception ignored) {
             return null;
         }
     }
 
-    private byte[] fetchUnsplashImage(String query) {
+    private ImageAsset fetchUnsplashImage(String query) {
         String resolvedAccessKey = accessKey == null ? "" : accessKey.trim();
 
         if (resolvedAccessKey.isBlank()) {
@@ -107,7 +126,7 @@ public class ImageService {
             for (JsonNode result : results) {
                 String imageUrl = result.path("urls").path("regular").asText("");
                 if (!imageUrl.isBlank()) {
-                    byte[] image = downloadBytes(imageUrl);
+                    ImageAsset image = downloadAsset(imageUrl);
                     if (image != null) {
                         return image;
                     }
@@ -121,11 +140,11 @@ public class ImageService {
     }
 
     private JsonNode readJson(String url) throws Exception {
-        byte[] bytes = downloadBytes(url);
-        return bytes == null ? mapper.createObjectNode() : mapper.readTree(bytes);
+        ImageAsset asset = downloadAsset(url);
+        return asset == null ? mapper.createObjectNode() : mapper.readTree(asset.bytes());
     }
 
-    private byte[] downloadBytes(String url) throws Exception {
+    private ImageAsset downloadAsset(String url) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
         connection.setRequestMethod("GET");
         connection.setRequestProperty("User-Agent", USER_AGENT);
@@ -138,7 +157,8 @@ public class ImageService {
         }
 
         try (InputStream inputStream = connection.getInputStream()) {
-            return inputStream.readAllBytes();
+            byte[] bytes = inputStream.readAllBytes();
+            return new ImageAsset(bytes, sanitizeContentType(connection.getContentType(), url));
         }
     }
 
@@ -175,6 +195,42 @@ public class ImageService {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private String sanitizeContentType(String value, String url) {
+        String contentType = value == null ? "" : value.toLowerCase(Locale.ROOT);
+
+        if (contentType.startsWith("image/jpeg")) {
+            return "image/jpeg";
+        }
+        if (contentType.startsWith("image/png")) {
+            return "image/png";
+        }
+        if (contentType.startsWith("image/gif")) {
+            return "image/gif";
+        }
+        if (contentType.startsWith("image/bmp")) {
+            return "image/bmp";
+        }
+        if (contentType.startsWith("image/webp")) {
+            return "image/webp";
+        }
+
+        String lowerUrl = url == null ? "" : url.toLowerCase(Locale.ROOT);
+        if (lowerUrl.contains(".png")) {
+            return "image/png";
+        }
+        if (lowerUrl.contains(".gif")) {
+            return "image/gif";
+        }
+        if (lowerUrl.contains(".bmp")) {
+            return "image/bmp";
+        }
+        if (lowerUrl.contains(".webp")) {
+            return "image/webp";
+        }
+
+        return "image/jpeg";
     }
 
     private String encode(String value) {
