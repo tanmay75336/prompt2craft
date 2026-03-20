@@ -74,15 +74,18 @@ export default function Register() {
 
       <div className="auth-shell">
         <div className="auth-wrap">
+          <div className="auth-nav-row">
+            <Link to="/" className="logo-link" aria-label="Prompt2Craft home">
+              <div className="logo-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 5h10M3 8h7M3 11h5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </div>
+              <span className="logo-text">Prompt2Craft</span>
+            </Link>
 
-          <Link to="/" className="logo-link">
-            <div className="logo-icon">
-              <svg width="16" height="16" viewBox="0 0 16 16">
-                <path d="M3 5h10M3 8h7M3 11h5" stroke="white" strokeWidth="1.8"/>
-              </svg>
-            </div>
-            <span className="logo-text">Prompt2Craft</span>
-          </Link>
+            <button className="secondary-button auth-nav-button" type="button" onClick={() => navigate("/login")}>Login</button>
+          </div>
 
           <div className="auth-card-wrap">
             <div className="auth-card">

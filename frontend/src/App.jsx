@@ -993,14 +993,14 @@ export default function App() {
                 </div>
               </div>
 
-              <div role="list" aria-label="Key statistics" style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 0, marginTop: 64, paddingTop: 40, borderTop: "1px solid var(--border)" }}>
+              <div role="list" aria-label="Key statistics" className="hero-stats-grid">
                 {[
                   { n: "14,000+", l: "Presentations created" },
                   { n: `< ${STATS[1].value}${STATS[1].suffix}`, l: "Median generation time" },
                   { n: `${MAX_PPT_PHOTOS} photos max`, l: "Cleaner visual pacing" },
                   { n: "Preview first", l: "Download only when ready" },
                 ].map((stat, index) => (
-                  <div key={stat.l} role="listitem" style={{ padding: "0 28px", textAlign: "center", borderLeft: index > 0 ? "1px solid var(--border)" : "none" }}>
+                  <div key={stat.l} role="listitem" className="hero-stat-card" style={{ animationDelay: `${index * 80}ms` }}>
                     <p style={{ fontFamily: "var(--font-display)", fontSize: "clamp(22px,4vw,30px)", fontWeight: 800, color: "var(--fg)", letterSpacing: "-0.045em" }}>{stat.n}</p>
                     <p style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--muted)", marginTop: 4, fontWeight: 500 }}>{stat.l}</p>
                   </div>
@@ -1019,7 +1019,7 @@ export default function App() {
                     Hover to tilt, click to select, drag to reorder, and preview before downloading.
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div className="preview-actions">
                   <div ref={exportRef} style={{ position: "relative" }}>
                     <button onClick={() => setExportMenu((current) => !current)} aria-expanded={exportMenu} aria-haspopup="menu" style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, color: "var(--muted)", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                       Export options v
@@ -1048,7 +1048,7 @@ export default function App() {
                 </div>
               ) : null}
 
-              <div className="slides-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(196px,1fr))", gap: 12 }}>
+              <div className="slides-grid">
                 {orderedSlides.map((slide, index) => (
                   <div key={slide.num} className="drag-card" draggable onDragStart={() => onDragStart(index)} onDragOver={(event) => onDragOver(event, index)} onDragEnd={onDragEnd}>
                     <SlideCard3D slide={slideData.find((item) => item.num === slide.num) || slide} active={activeSlide === slide.num} onClick={(num) => setActiveSlide(activeSlide === num ? null : num)} editMode={editMode} onEdit={handleEditSlide} delay={index * 50} />
@@ -1068,9 +1068,9 @@ export default function App() {
               </h2>
             </div>
 
-            <ul className="features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16, padding: 0 }}>
+            <ul className="features-grid" style={{ padding: 0 }}>
               {FEATURES.map((feature) => (
-                <li key={feature.title} className="hover-lift" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: "28px 26px", boxShadow: "0 2px 8px rgba(0,0,0,.03)" }}>
+                <li key={feature.title} className="hover-lift tech-card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: "28px 26px", boxShadow: "0 2px 8px rgba(0,0,0,.03)" }}>
                   <div aria-hidden="true" style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,#fff7ed,#ffedd5)", border: "1px solid rgba(249,115,22,.15)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                       {feature.visual === "brain" ? <path d="M11 3C7.68 3 5 5.68 5 9c0 2.1 1.05 3.96 2.66 5.1A4 4 0 0011 19a4 4 0 003.34-4.9C15.95 12.96 17 11.1 17 9c0-3.32-2.68-6-6-6z" stroke="#f97316" strokeWidth="1.5" strokeLinejoin="round" /> : null}
@@ -1091,23 +1091,23 @@ export default function App() {
 
           <section id="how-it-works" className="section-pad" style={{ padding: "96px 28px", background: "var(--section-alt)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
             <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-              <div style={{ textAlign: "center", marginBottom: 64 }}>
+              <div className="how-heading" style={{ textAlign: "center", marginBottom: 64 }}>
                 <span className="section-label">How it works</span>
-                <h2 className="section-title" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
+                <h2 className="section-title how-title" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
                   From prompt to presentation
                   <br />
                   in four steps
                 </h2>
               </div>
 
-              <ol className="how-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4, padding: 0 }}>
+              <ol className="how-grid" style={{ padding: 0 }}>
                 {[
                   { n: "1", t: "Write your prompt", d: "Describe your topic, audience, or objective in a sentence or a fuller brief." },
                   { n: "2", t: "Choose slide count", d: "Pick exactly 3 to 20 slides. The request sent to the backend uses that exact number." },
                   { n: "3", t: "AI builds your deck", d: "The backend returns a PPTX while Prompt2Craft prepares a reviewable preview." },
                   { n: "4", t: "Preview and download", d: "Review slide titles and bullets, then download the PPT only when you are ready.", highlight: true },
-                ].map((step, index) => (
-                  <li key={step.n} style={{ padding: "36px 28px", background: step.highlight ? "linear-gradient(135deg,#f97316,#f43f5e)" : "var(--card)", borderRadius: index === 0 ? "14px 0 0 14px" : index === 3 ? "0 14px 14px 0" : 0, border: step.highlight ? "none" : "1px solid var(--border)", borderLeft: index > 0 && !step.highlight ? "none" : undefined }}>
+                ].map((step) => (
+                  <li key={step.n} className={`how-step-card ${step.highlight ? "how-step-highlight hover-lift" : "hover-lift tech-card"}`} style={{ padding: "36px 28px", background: step.highlight ? "linear-gradient(135deg,#f97316,#f43f5e)" : "var(--card)", borderRadius: 16, border: step.highlight ? "none" : "1px solid var(--border)" }}>
                     <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 10, background: step.highlight ? "rgba(255,255,255,.25)" : "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 22 }}>
                       <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: step.highlight ? "#fff" : "var(--accent)" }}>{step.n}</span>
                     </div>
@@ -1135,7 +1135,7 @@ export default function App() {
 
               <div className="saas-feature-grid" style={{ display: "grid", gap: 14 }}>
                 {SAAS_FEATURES.map((feature, index) => (
-                  <div key={feature.title} className="panel-card hover-lift" style={{ padding: 22, background: index % 2 === 0 ? "var(--card)" : "linear-gradient(135deg,#fff7ed,#fff)" }}>
+                  <div key={feature.title} className={`panel-card hover-lift tech-card ${index % 2 === 0 ? "" : "panel-card-soft"}`} style={{ padding: 22 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#f97316,#fb7185)", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-display)", fontWeight: 800, marginBottom: 16 }}>
                       0{index + 1}
                     </div>
@@ -1164,7 +1164,7 @@ export default function App() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 }}>
                 {USE_CASES.map((item) => (
-                  <div key={item.title} className="panel-card hover-lift" style={{ padding: 24 }}>
+                  <div key={item.title} className="panel-card hover-lift tech-card" style={{ padding: 24 }}>
                     <span className="inline-badge">{item.badge}</span>
                     <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.035em", marginTop: 16, marginBottom: 12 }}>
                       {item.title}
@@ -1193,7 +1193,7 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="panel-card" style={{ background: "linear-gradient(135deg,#fff7ed,#fff1f2)" }}>
+              <div className="panel-card panel-card-accent">
                 <span className="inline-badge">Pay as you go</span>
                 <h3 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--fg)", marginTop: 18, letterSpacing: "-0.04em" }}>Rs {PAID_GENERATION_PRICE_INR} per extra deck</h3>
                 <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--muted)", lineHeight: 1.7, marginTop: 12 }}>

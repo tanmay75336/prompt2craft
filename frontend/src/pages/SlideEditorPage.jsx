@@ -27,10 +27,49 @@ const editorStyles = `
     border-bottom: 1px solid #e7ebf0;
   }
 
+  .editor-topbar-inner {
+    height: 70px;
+  }
+
+  .editor-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .editor-top-actions .primary-button,
+  .editor-top-actions .secondary-button {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .editor-top-actions .secondary-button {
+    padding-inline: 18px;
+  }
+
+  .editor-top-actions .primary-button {
+    padding-inline: 20px;
+  }
+
   .editor-wrap {
     max-width: 1420px;
     margin: 0 auto;
     padding: 28px;
+  }
+
+  .editor-page-header {
+    margin-bottom: 24px;
+  }
+
+  .editor-page-copy {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: #667085;
+    line-height: 1.7;
+    max-width: 820px;
   }
 
   .editor-layout {
@@ -155,9 +194,44 @@ const editorStyles = `
     color: #c2410c;
   }
 
+  .editor-center-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .editor-preview-frame {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .editor-insights-grid {
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
   @media (max-width: 1180px) {
     .editor-layout {
       grid-template-columns: 1fr;
+    }
+
+    .editor-topbar-inner {
+      height: auto;
+      min-height: 70px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .editor-top-actions {
+      width: 100%;
+      justify-content: flex-end;
     }
 
     .editor-sidebar,
@@ -167,12 +241,66 @@ const editorStyles = `
 
     .editor-slide-list {
       max-height: none;
+      padding-right: 0;
+    }
+  }
+
+  @media (max-width: 920px) {
+    .editor-layout {
+      gap: 16px;
+    }
+
+    .editor-top-actions {
+      justify-content: stretch;
+    }
+
+    .editor-top-actions .primary-button,
+    .editor-top-actions .secondary-button {
+      flex: 1 1 240px;
+      text-align: center;
+    }
+
+    .editor-slide-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    .editor-insights-grid {
+      grid-template-columns: repeat(2,minmax(0,1fr));
     }
   }
 
   @media (max-width: 768px) {
     .editor-wrap {
       padding: 20px 16px;
+    }
+
+    .editor-page-copy {
+      font-size: 14px;
+    }
+
+    .editor-toolbar {
+      width: 100%;
+    }
+
+    .editor-toolbar .editor-small-button {
+      flex: 1 1 140px;
+    }
+
+    .editor-insights-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .editor-top-actions .primary-button,
+    .editor-top-actions .secondary-button {
+      flex: 1 1 100%;
+    }
+
+    .editor-slide-list {
+      grid-template-columns: 1fr;
     }
   }
 `;
@@ -275,7 +403,7 @@ export default function SlideEditorPage() {
         <style>{editorStyles}</style>
         <div className="editor-shell">
           <div className="editor-topbar">
-            <div className="nav-inner">
+            <div className="nav-inner editor-topbar-inner">
               <Link to="/" className="logo-link" aria-label="Prompt2Craft home">
                 <div className="logo-icon" aria-hidden="true">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -395,7 +523,7 @@ export default function SlideEditorPage() {
       <style>{editorStyles}</style>
       <div className="editor-shell">
         <div className="editor-topbar">
-          <div className="nav-inner" style={{ height: 70 }}>
+          <div className="nav-inner editor-topbar-inner">
             <Link to="/" className="logo-link" aria-label="Prompt2Craft home">
               <div className="logo-icon" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -405,11 +533,11 @@ export default function SlideEditorPage() {
               <span className="logo-text">Prompt2Craft</span>
             </Link>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button className="secondary-button" type="button" style={{ width: "auto", paddingInline: 18 }} onClick={() => navigate("/")}>
+            <div className="editor-top-actions">
+              <button className="secondary-button" type="button" onClick={() => navigate("/")}>
                 Generate another
               </button>
-              <button className="primary-button" type="button" style={{ width: "auto", paddingInline: 20 }} disabled={downloading} onClick={handleDownload}>
+              <button className="primary-button" type="button" disabled={downloading} onClick={handleDownload}>
                 {downloading ? "Generating PPT..." : "Download PPT"}
               </button>
             </div>
@@ -417,12 +545,12 @@ export default function SlideEditorPage() {
         </div>
 
         <main className="editor-wrap">
-          <div style={{ marginBottom: 24 }}>
+          <div className="editor-page-header">
             <span className="section-label">Editable preview</span>
             <h1 className="section-title" style={{ fontSize: "clamp(30px,4vw,52px)", marginBottom: 12 }}>
               Review the deck before export
             </h1>
-            <p style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "#667085", lineHeight: 1.7, maxWidth: 820 }}>
+            <p className="editor-page-copy">
               Prompt2Craft generated a structured slide draft for <strong style={{ color: "#1f2937" }}>{topic}</strong>. Edit the content, adjust layouts, reorder slides, and download the PPT only when you are satisfied.
             </p>
           </div>
@@ -481,7 +609,7 @@ export default function SlideEditorPage() {
             </aside>
 
             <section className="editor-panel" style={{ padding: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 18, flexWrap: "wrap" }}>
+              <div className="editor-center-head">
                 <div>
                   <span className="inline-badge" style={{ background: "#fff1e8", borderColor: "rgba(255,115,0,.14)", color: "#c2410c" }}>
                     Center preview
@@ -501,7 +629,7 @@ export default function SlideEditorPage() {
                 </div>
               </div>
 
-              <div style={{ maxWidth: 920, margin: "0 auto" }}>
+              <div className="editor-preview-frame">
                 <SlidePreview slide={selectedSlide} />
               </div>
             </section>
@@ -527,7 +655,7 @@ export default function SlideEditorPage() {
                 <p style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, letterSpacing: "-0.03em", color: "#1f2937", marginBottom: 14 }}>
                   Deck insights
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginBottom: 14 }}>
+                <div className="editor-insights-grid">
                   <div style={{ borderRadius: 14, background: "#ffffff", border: "1px solid #e7ebf0", padding: 12 }}>
                     <p style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff7300", marginBottom: 8 }}>
                       Visuals
@@ -561,15 +689,6 @@ export default function SlideEditorPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="editor-toolbar" style={{ marginBottom: 16 }}>
-                <button className="editor-small-button" type="button" onClick={addSlide}>
-                  Add slide
-                </button>
-                <button className="editor-small-button" type="button" onClick={() => duplicateSlide(selectedSlide.id)}>
-                  Duplicate
-                </button>
               </div>
 
               <div className="editor-field">
@@ -685,9 +804,6 @@ export default function SlideEditorPage() {
                 </>
               ) : null}
 
-              <button className="primary-button" type="button" disabled={downloading} onClick={handleDownload}>
-                {downloading ? "Generating PPT..." : "Download edited PPT"}
-              </button>
             </aside>
           </div>
         </main>
